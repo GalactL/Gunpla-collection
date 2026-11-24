@@ -5,3 +5,6 @@ data/
 .impeccable/
 PRODUCT.md
 docs/engineering/photos-bilan-des-essais.md
+
+# Configuration locale de l'outil de travail (non publiée)
+.gearbox/
