@@ -1,0 +1,7 @@
+node_modules/
+data/
+.node/
+.claude/
+.impeccable/
+PRODUCT.md
+docs/engineering/photos-bilan-des-essais.md

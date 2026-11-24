@@ -1,0 +1,3 @@
+demarrer.sh text eol=lf
+demarrer.bat text eol=crlf
+.github/workflows/*.yml text eol=lf

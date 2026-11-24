@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Archive technique - maquette jetable</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#ECEEF0;--tray:#DCE0E4;--ink:#16203A;--ink2:#4F5869;--rule:#C3C9D1;--red:#C0182B;--blue:#1F4E9E;--yellow:#F2B705;--onred:#fff;--onblue:#fff;--card:#F5F6F7}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--paper:#161A17;--tray:#222823;--ink:#E4E7E1;--ink2:#9DA59C;--rule:#343B35;--red:#FF5468;--blue:#8FB0E0;--yellow:#E0A526;--onred:#161A17;--onblue:#161A17;--card:#1B201C}}
+:root[data-theme=dark]{--paper:#161A17;--tray:#222823;--ink:#E4E7E1;--ink2:#9DA59C;--rule:#343B35;--red:#FF5468;--blue:#8FB0E0;--yellow:#E0A526;--onred:#161A17;--onblue:#161A17;--card:#1B201C}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 15px/1.45 "IBM Plex Sans",sans-serif;font-variant-numeric:tabular-nums}
+h1,h2,h3,.disp{font-family:"Saira Semi Condensed",sans-serif;font-weight:700;margin:0}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+/* header = title block */
+header{display:flex;align-items:stretch;border-bottom:2px solid var(--ink);padding:0 32px;gap:32px}
+.brand{display:flex;flex-direction:column;justify-content:center;padding:12px 24px 12px 0;border-right:1px solid var(--rule)}
+.brand b{font:700 18px "Saira Semi Condensed";letter-spacing:.04em}.brand span{font-size:13px;color:var(--ink2)}
+nav{display:flex;flex:1;gap:8px}
+nav a{display:flex;align-items:center;gap:8px;padding:0 24px;font:700 18px "Saira Semi Condensed";letter-spacing:.03em;color:var(--ink2);text-decoration:none;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer}
+nav a[aria-current=page]{color:var(--ink);border-bottom-color:var(--red)}
+nav a small{font:500 13px "IBM Plex Sans";border:1px solid var(--rule);padding:0 6px}
+.sync{display:flex;align-items:center;gap:16px;font-size:13px;color:var(--ink2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 16px;border:2px solid var(--ink);background:transparent;font-weight:600;font-size:13px;cursor:pointer}
+.btn.pri{background:var(--red);border-color:var(--red);color:var(--onred)}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+main{padding:24px 32px 48px}
+/* plate */
+.plate{align-self:flex-start;display:inline-flex;align-items:stretch;border:1.5px solid var(--ink);font:700 15px "Saira Semi Condensed";letter-spacing:.06em;background:var(--card);clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,0 100%);padding-right:6px}
+.plate i{font-style:normal;padding:1px 8px}.plate i+i{border-left:1px solid var(--ink);font-family:"IBM Plex Sans";font-weight:600;font-size:13px;display:flex;align-items:center}
+.plate.big{font-size:32px}.plate.big i+i{font-size:24px}
+button.plate{cursor:pointer;color:var(--ink);padding-top:0;padding-bottom:0;min-height:36px}
+button.plate[aria-pressed=true]{background:var(--blue);color:var(--onblue)}
+button.plate[aria-pressed=true] i+i{border-color:var(--onblue)}
+/* strip */
+.strip{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:center;padding-bottom:16px;border-bottom:1px solid var(--rule);margin-bottom:24px}
+.grp{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lab{font:600 13px "IBM Plex Sans";color:var(--ink2);text-transform:uppercase;letter-spacing:.06em}
+.fld{min-height:36px;border:1.5px solid var(--ink);background:var(--card);padding:0 12px}
+.right{margin-left:auto;font-size:13px;color:var(--ink2)}
+/* grid */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(208px,1fr));gap:24px}
+.tray{aspect-ratio:4/3;background:var(--tray);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;border:1px solid var(--rule)}
+.tray svg{width:100%;height:100%}
+.card:hover .tray{filter:brightness(.94)}.card:hover h3 a{text-decoration:underline}
+.card{display:flex;flex-direction:column}.card .plate{margin:12px 0 8px}
+.card h3{font:600 15px/1.3 "IBM Plex Sans";display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:39px}
+.card h3 a{color:inherit;text-decoration:none}
+.spec{font-size:13px;color:var(--ink2);margin:4px 0 12px}.spec b{font-weight:500;color:var(--ink)}
+.acts{display:grid;gap:8px}.acts .btn{width:100%;white-space:normal;text-align:left;justify-content:flex-start}
+.mark{font-size:13px;font-weight:600;color:var(--blue);margin:0 0 4px;display:block}
+/* gauge */
+.gauge{display:inline-flex;gap:3px;vertical-align:middle}
+.gauge s{display:block;width:18px;height:10px;text-decoration:none;border:1.5px solid var(--ink);clip-path:polygon(0 0,calc(100% - 4px) 0,100% 4px,100% 100%,0 100%)}
+.gauge s.on{background:var(--ink)}.gauge s.off{border-style:dashed;border-color:var(--ink2)}.gauge s.red{background:var(--red);border-color:var(--red)}
+.gauge s.empty{opacity:.35}
+/* ledger */
+.tabs2{display:flex;gap:24px;align-items:center;margin-bottom:16px;flex-wrap:wrap}
+.tabs2 button{background:none;border:0;border-bottom:2px solid transparent;font-weight:600;cursor:pointer;padding:6px 0}
+.tabs2 button[aria-pressed=true]{border-bottom-color:var(--blue);color:var(--blue)}
+.ledger{border-top:2px solid var(--ink)}
+.row{display:grid;grid-template-columns:56px minmax(220px,2.2fr) 190px 96px 128px 120px minmax(160px,1.6fr);gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule)}
+.row.head{padding:8px 0;font:600 13px "IBM Plex Sans";text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);border-bottom:1px solid var(--ink)}
+.row .tray{aspect-ratio:4/3;width:56px;height:42px}
+.row .t{display:flex;flex-direction:column;gap:2px;min-width:0}.row .t span{font-size:13px;color:var(--ink2)}.row .t strong{font-weight:600}
+.num{text-align:right}.row .g{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+.note{font-size:13px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mut{color:var(--ink2)}
+[hidden]{display:none!important}
+@media (max-width:900px){header{padding:0 16px;flex-wrap:wrap;gap:8px}main{padding:16px}.row{grid-template-columns:56px 1fr 120px}.row>:nth-child(n+4){display:none}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>ARCHIVE MAQUETTES</b><span>Fiche n° 0079 · rév. A</span></div>
+  <nav aria-label="Vues">
+    <a id="t-cat" data-tab="catalogue" role="link" tabindex="0">Catalogue Maquettes <small>1 234</small></a>
+    <a id="t-col" data-tab="collection" role="link" tabindex="0">Ma collection <small>37</small></a>
+  </nav>
+  <div class="sync"><button class="btn"><svg viewBox="0 0 16 16"><path d="M13 3v4H9M3 13V9h4M3.5 7A5 5 0 0 1 13 7M12.5 9A5 5 0 0 1 3 9"/></svg>Actualiser</button><span>Importé le 22/11/2026 · 1 234 kits</span></div>
+</header>
+
+<main>
+<section id="catalogue">
+  <div class="strip">
+    <input class="fld" type="search" placeholder="Rechercher un kit ou une série" aria-label="Rechercher un kit ou une série" style="width:260px">
+    <div class="grp"><span class="lab">Échelle</span><button class="plate" aria-pressed="false"><i>1/144</i></button><button class="plate" aria-pressed="true"><i>1/100</i></button><button class="plate" aria-pressed="false"><i>1/60</i></button></div>
+    <div class="grp"><span class="lab">Grade</span><button class="plate" aria-pressed="false"><i>HG</i></button><button class="plate" aria-pressed="false"><i>RG</i></button><button class="plate" aria-pressed="true"><i>MG</i></button><button class="plate" aria-pressed="false"><i>PG</i></button></div>
+    <div class="grp"><span class="lab">Série</span><select class="fld" aria-label="Série"><option>Toutes les séries</option></select></div>
+    <div class="right">8 kits · <select class="fld" aria-label="Tri"><option>Tri : récents</option></select></div>
+  </div>
+  <div class="grid" id="grid"></div>
+</section>
+
+<section id="collection" hidden>
+  <div class="tabs2">
+    <button aria-pressed="true">Tous 37</button><button aria-pressed="false">Souhaités 7</button><button aria-pressed="false">Possédés 21</button><button aria-pressed="false">Montés 9</button>
+    <input class="fld" type="search" placeholder="Rechercher dans ma collection" aria-label="Rechercher dans ma collection" style="margin-left:auto;width:260px">
+  </div>
+  <div class="ledger" id="ledger">
+    <div class="row head"><span></span><span>Kit</span><span>Statut</span><span class="num">Prix payé</span><span>Date d'achat</span><span>Lieu</span><span>Notes</span></div>
+  </div>
+</section>
+</main>
+
+<script>
+const K=[
+ ["MG","1/100","RX-0 Unicorn Gundam 02 Banshee","UC","#7a4a4a",0],
+ ["MG","1/100","Exia","00","#3d6aa8",0],
+ ["MG","1/100","FAZZ Ver.Ka","UC","#8a8f99",0],
+ ["HG","1/144","Gundam Aerial","Mercure","#4f8f84",0],
+ ["RG","1/144","Zaku II","UC","#5c7a52",0],
+ ["PG","1/60","Unicorn Gundam","UC","#b5b5ba",0],
+ ["MG","1/100","Wing Gundam Zero EW","Wing","#c9c9cf",1],
+ ["HG","1/144","Barbatos","Orphans","#a8553a",0]];
+const plate=(g,s,c='')=>`<span class="plate ${c}"><i>${g}</i><i>${s}</i></span>`;
+// neutral generated box: flat colour field, grade band, hatch tone
+const box=(g,s,col,id)=>`<svg viewBox="0 0 200 150" aria-hidden="true" alt=""><defs><pattern id="h${id}" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-opacity=".18" stroke-width="2"/></pattern></defs><rect x="14" y="10" width="172" height="130" fill="${col}"/><rect x="14" y="10" width="172" height="130" fill="url(#h${id})"/><rect x="14" y="10" width="172" height="22" fill="#16203A"/><text x="22" y="26" fill="#fff" font-family="Saira Semi Condensed" font-weight="700" font-size="15">${g} ${s}</text><rect x="52" y="52" width="96" height="70" fill="#fff" fill-opacity=".14" stroke="#fff" stroke-opacity=".5"/></svg>`;
+const missing=(g,s)=>`<svg viewBox="0 0 200 150" aria-hidden="true"><defs><pattern id="tone" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="1.5" cy="1.5" r=".7" fill="currentColor" opacity=".25"/></pattern></defs><g style="color:var(--ink)" stroke="currentColor" fill="none"><rect x="30" y="22" width="140" height="94" fill="url(#tone)" stroke-width="2"/>
+<path d="M30 130h140M30 125v10M170 125v10M18 22v94M13 22h10M13 116h10" stroke-width="1"/><path d="M8 8h10M8 8v10M192 8h-10M192 8v10M8 142h10M8 142v-10M192 142h-10M192 142v-10" stroke-width="1"/></g>
+<g style="color:var(--ink2)" fill="currentColor" font-family="IBM Plex Sans" font-size="8" text-anchor="middle"><text x="100" y="140">210 mm</text><text x="9" y="70" transform="rotate(-90 9 70)">150 mm</text></g></svg>`;
+const g=$=>document.getElementById($);
+g('grid').innerHTML=K.map((k,i)=>{const m=k[5];return `<article class="card"><div class="tray" ${m?'style="flex-direction:column"':''}>${m?missing(k[0],k[1])+`<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding-top:6px">${plate(k[0],k[1])}<b class="disp" style="font-size:18px;background:var(--tray);padding:0 8px">Introuvable</b><button class="btn" style="min-height:32px;background:var(--paper)">Ajouter ma photo</button></div>`:box(k[0],k[1],k[4],i)}</div>
+${m?'':plate(k[0],k[1])}<h3><a href="#">${k[0]} ${k[1]} ${k[2]}</a></h3>${i==0?'<span class="mark">Dans ma collection · 2</span>':''}<div class="spec">Série · <b>${k[3]}</b></div>
+<div class="acts"><button class="btn"><svg viewBox="0 0 16 16"><path d="M8 13S2 9.5 2 5.5A3 3 0 0 1 8 4a3 3 0 0 1 6 1.5C14 9.5 8 13 8 13z"/></svg>Ajouter à ma wishlist</button><button class="btn pri"><svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>Ajouter à ma collection</button></div></article>`}).join('');
+const G=n=>{const c=['','','']; return `<span class="gauge">${[0,1,2].map(j=>`<s class="${n==1?(j==0?'off':'empty'):n==2?(j<2?'on':'empty'):(j<2?'on':'red')}"></s>`).join('')}</span>`};
+const L=[[0,2,"Possédé","42,90 €","12 mars 2026","Nantes, Cultura","Boîte légèrement écrasée, notice complète."],[0,3,"Monté","54,00 €","2 août 2025","Occasion, Lyon","Exemplaire 2 · monté avec marqueur panel-line."],[1,3,"Monté","49,90 €","4 janv. 2026","Amazon","Seconde passe de topcoat à prévoir."],[2,1,"Souhaité","—","—","—","Attendre une réédition ou une promo."],[3,2,"Possédé","21,50 €","30 oct. 2026","Boutique locale","Cadeau d'anniversaire, encore sous blister."],[5,3,"Monté","289,00 €","14 juin 2025","Hobby Link","Gros projet : LED en cours d'installation."],[6,1,"Souhaité","—","—","—","Recherche version Ver.Ka si disponible."],[7,2,"Possédé","18,90 €","9 nov. 2026","Salon de Paris","À peindre en teinte d'origine, œil droit à vérifier."]];
+g('ledger').insertAdjacentHTML('beforeend',L.map((l,n)=>{const k=K[l[0]];return `<div class="row"><div class="tray">${box(k[0],k[1],k[4],'L'+n)}</div><div class="t">${plate(k[0],k[1])}<strong>${k[2]}</strong><span>Série · ${k[3]}</span></div><div class="g">${G(l[1])}${l[2]}</div><span class="num">${l[3]}</span><span class="${l[4]=='—'?'mut':''}">${l[4]}</span><span class="${l[5]=='—'?'mut':''}">${l[5]}</span><span class="note" title="${l[6]}">${l[6]}</span></div>`}).join(''));
+const q=new URLSearchParams(location.search);
+if(q.get('theme'))document.documentElement.dataset.theme=q.get('theme');
+function tab(t){g('catalogue').hidden=t!='catalogue';g('collection').hidden=t!='collection';
+ g('t-cat').toggleAttribute('aria-current',t=='catalogue');g('t-col').toggleAttribute('aria-current',t=='collection');
+ g('t-cat').setAttribute('aria-current',t=='catalogue'?'page':'false');g('t-col').setAttribute('aria-current',t=='collection'?'page':'false')}
+document.querySelectorAll('nav a').forEach(a=>{a.onclick=()=>tab(a.dataset.tab);a.onkeydown=e=>e.key=='Enter'&&tab(a.dataset.tab)});
+tab(q.get('tab')=='collection'?'collection':'catalogue');
+</script>
+</body>
+</html>
