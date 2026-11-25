@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { HttpError, sendJson } from '../routes/index.js';
 import { fetchPhotos, providersToTry } from './fetch.js';
+import { gundamWikiProvider } from './gundamwiki.js';
 import { hljProvider } from './provider.js';
 import { shopifyProvider } from './shopify.js';
 import { MAX_BYTES, MIME, getLink, getPhoto, photosDir, savePhoto } from './store.js';
@@ -30,7 +31,7 @@ function readRaw(req) {
   });
 }
 
-// ctx extras (tests): providers, fetch, now. Providers are ranked best first: HLJ, then the four Shopify stores (no key).
+// ctx extras (tests): providers, fetch, now. Providers are ranked best first: HLJ, then the four Shopify stores (no key), then the Gundam wiki (last resort).
 // The two last ones: name alone first (A-Z) or grade + name first (Las Cale), 500 ms apart.
 export default function routes(router, { db, dataDir, providers, fetch, now, jobs = {} }) {
   providers ??= [
@@ -39,6 +40,7 @@ export default function routes(router, { db, dataDir, providers, fetch, now, job
     shopifyProvider({ name: 'usagundamstore', host: 'usagundamstore.com', fetch }),
     shopifyProvider({ name: 'aztoyhobby', host: 'aztoyhobby.com', fetch, minIntervalMs: 500, forms: [false, true], tidy: true }),
     shopifyProvider({ name: 'lascalemodel', host: 'lascalemodel.com', fetch, minIntervalMs: 500, forms: [true, false], tidy: true }),
+    gundamWikiProvider({ fetch }), // last resort: illustrations, always "a verifier"
   ];
   let running = false;
   let last = null;

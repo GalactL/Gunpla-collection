@@ -444,7 +444,7 @@ test('hlj : une raison de refus par cas, sans changer la correspondance', async 
 test('photos : chaîne par défaut = HLJ puis boutiques Shopify ; décompte par source dans le statut ; upload intact ; photo wiki remplacée par HLJ', async () => {
   const hlj = (items) => async (url) => String(url).includes('hlj.com/search')
     ? new Response(hljPage(items), { status: 200 })
-    : String(url).includes('suggest.json')
+    : String(url).includes('suggest.json') || String(url).includes('api.php')
       ? Response.json({ resources: { results: { products: [] } } }) // les quatre boutiques Shopify (sans résultat)
       : new Response(PNG, { status: 200 });
   const app = await photoApp({ fetch: hlj([['1/100 MG Exia', 'mg-exia-ban1']]) });
@@ -461,7 +461,7 @@ test('photos : chaîne par défaut = HLJ puis boutiques Shopify ; décompte par 
       await new Promise((r) => setTimeout(r, 5));
       st = await (await app.req('GET', '/api/photos/status')).json();
     } while (st.running);
-    assert.deepEqual(Object.keys(st.last.sources).sort(), ['aztoyhobby', 'gundamplanet', 'hlj-box', 'lascalemodel', 'usagundamstore']);
+    assert.deepEqual(Object.keys(st.last.sources).sort(), ['aztoyhobby', 'gundamplanet', 'gundamwiki', 'hlj-box', 'lascalemodel', 'usagundamstore']);
     assert.deepEqual(st.last.sources['hlj-box'], { found: 2, uncertain: 0, errors: 0, refused: { [REASONS.noCandidate]: 1 } }); // #12 : champ uncertain ajouté
     assert.equal(photoRow(app.db, exia).source_url, 'https://www.hlj.com/mg-exia-ban1');
     assert.equal(photoRow(app.db, wiki).source_url, 'https://www.hlj.com/mg-exia-ban1'); // wiki remplacée
@@ -477,9 +477,9 @@ test('photos : une photo wiki déjà stockée reste si HLJ ne trouve rien', asyn
   try {
     const kitId = addKit(app.db, 1, 'MG 1/100 Exia');
     savePhoto({ db: app.db, dataDir: app.dir, kitId, bytes: JPG, kind: 'auto', sourceUrl: 'https://gundam.fandom.com/wiki/Exia' });
-    const miss = { name: 'hlj-box', host: 'hlj.com', find: async () => null };
+    const miss = { name: 'hlj-box', host: 'hlj.com', find: async () => null }, wiki = { name: 'wiki', host: 'gundam.fandom.com', find: async () => null };
     const stats = {};
-    assert.deepEqual(await fetchPhotoForKit({ db: app.db, dataDir: app.dir, kitId, providers: [miss], fetch: okFetch(PNG), stats }), { found: false });
+    assert.deepEqual(await fetchPhotoForKit({ db: app.db, dataDir: app.dir, kitId, providers: [miss, wiki], fetch: okFetch(PNG), stats }), { found: false });
     assert.equal(photoRow(app.db, kitId).source_url, 'https://gundam.fandom.com/wiki/Exia');
     assert.deepEqual(stats['hlj-box'].refused, { [REASONS.noResult]: 1 });
   } finally {

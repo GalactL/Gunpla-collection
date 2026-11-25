@@ -54,13 +54,10 @@ async function download(url, fetch) {
 
 // Providers are ranked by position (best first); a stored photo's rank is the provider owning its source_url.
 // Unknown source (a provider that is no longer configured, or has no `host`) is never replaced.
-const LEGACY_WIKI = 'gundam.fandom.com';
 function rankOf(providers, url) {
   try {
     const h = new URL(url).hostname;
-    const i = providers.findIndex((p) => p.host && (h === p.host || h.endsWith(`.${p.host}`)));
-    // Photos stored while the wiki was a source: kept, but any current provider may replace them.
-    return i < 0 && (h === LEGACY_WIKI || h.endsWith(`.${LEGACY_WIKI}`)) ? providers.length : i;
+    return providers.findIndex((p) => p.host && (h === p.host || h.endsWith(`.${p.host}`)));
   } catch {
     return -1; // malformed or missing source_url: unknown source
   }
@@ -120,9 +117,9 @@ export async function tryProvider({ db, dataDir, kitId, p, fetch = globalThis.fe
   try {
     let reason;
     const hit = await p.find(name, grade, (r) => (reason = r), scaleOf(kit.scale ?? kit.title));
-    if (reason === REASONS.source) fail();
-    else breaker.delete(p.name);
     const kept = !!hit?.uncertain && hadPhoto; // a doubtful page never replaces a photo: remembered like a refusal
+    if (reason === REASONS.source) fail();
+    else if (!hit || kept) breaker.delete(p.name); // a hit is only healthy once its image downloaded (a CDN 403 counts as an error)
     if (kept) reason = REASONS.kept;
     if (!hit || kept) {
       if (reason === REASONS.source) t.errors++;
@@ -136,6 +133,7 @@ export async function tryProvider({ db, dataDir, kitId, p, fetch = globalThis.fe
       return { found: false };
     }
     const bytes = await download(hit.imageUrl, fetch);
+    breaker.delete(p.name);
     const sourceUrl = hit.pageUrl ?? hit.imageUrl;
     if (savePhoto({ db, dataDir, kitId, bytes, kind: 'auto', sourceUrl, uncertain: !!hit.uncertain })) {
       db.prepare('DELETE FROM photo_refusals WHERE kit_id = ? AND provider = ?').run(kitId, p.name); // this source no longer refuses the kit (better-ranked refusals stay)
