@@ -39,6 +39,17 @@ Les données persistent entre les redémarrages. Le dossier est ignoré par git.
 - Un kit qui disparaît de la source est masqué (jamais supprimé, sa photo reste), sauf s'il est dans la collection ; il réapparaît s'il revient. Un import vide ou en erreur ne masque rien.
 - Un kit sans photo affiche « Introuvable » et un bouton « Chercher une photo » (recherche d'images dans un nouvel onglet) ; l'ajout de sa propre photo reste possible.
 
+### Mesurer l'effet d'un changement des règles de photos
+
+Le gain réel ne se lit qu'avec le réseau (les tests utilisent des sources simulées), sur la machine qui a la vraie base :
+
+1. Avant le changement, lancer « Actualiser les photos » avec `POST /api/photos/refresh?force=1` (ou le bouton) pour ignorer la mémoire des refus, puis attendre la fin.
+2. Noter le récapitulatif `job done` du journal du serveur (kits essayés, trouvés), les lignes par source (trouvées, à vérifier, assouplies, refusées) et `last.sources` de `GET /api/photos/status`.
+3. Appliquer le changement, redémarrer le serveur, relancer exactement la même actualisation forcée.
+4. Comparer les deux séries : kits trouvés, photos « à vérifier » (filtre du catalogue) et détail par source. Parcourir les lignes de refus et de photos douteuses pour vérifier qu'aucune photo n'est celle d'un autre kit.
+5. Une mesure n'est valable que si le réseau était stable pendant les deux passes (les erreurs réseau comptent comme des ratés).
+
+
 ## Installer chez un ami
 
 1. Envoyer le zip de la dernière release (voir « Publier une version » plus bas : page Releases du dépôt GitHub, fichier `gunpla-collection-vX.Y.Z.zip`), ou le projet par `git clone`, ou par un zip fait avec `git archive` :

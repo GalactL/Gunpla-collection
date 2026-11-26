@@ -21,6 +21,7 @@ export function gundamWikiProvider({ fetch = globalThis.fetch, minIntervalMs = 5
   return {
     name: 'gundamwiki',
     host: HOST,
+    metrics: turn.metrics,
     async find(kitName, kitGrade, refuse = () => {}) {
       const clean = kitName.replace(/\([^)]*\)/g, ' ').replace(/&/g, ' ').replace(/\s+/g, ' ').trim();
       if (kitWords(clean).length < 2) return refuse(REASONS.noResult), null; // one word is too generic: "Wing" is not "Gundam Wing"
@@ -41,7 +42,7 @@ export function gundamWikiProvider({ fetch = globalThis.fetch, minIntervalMs = 5
         }).filter(Boolean);
         const r = hits.length ? bestDoubt(hits) : { reason: pages.length ? REASONS.noCandidate : REASONS.noResult };
         if (r.hit) return r.hit;
-        refuse(r.reason);
+        refuse(r.reason, { query: clean, extra: r.extra, missing: r.missing });
         return null;
       } catch (err) {
         console.error(`[photos] gundamwiki: ${err.message}`);

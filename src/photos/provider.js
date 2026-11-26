@@ -54,7 +54,7 @@ export const gradeOf = (s) => (/^\s*re\s*$/i.test(s) ? 're' : GRADE.exec(s)?.[1]
 // Scale as the digits after "1/" or "1:" ("1/144", "1:144" -> "144"), undefined when absent.
 export const scaleOf = (s) => /\b1[/:](\d{2,3})\b/.exec(s ?? '')?.[1];
 // A lone "S" belongs to the word before it ("Challia S" == "Challia's").
-const words = (s) =>
+export const words = (s) =>
   norm(s)
     .split(/[\s.,()[\]:&]+/)
     .filter((w) => w && !/^\d+\/\d+$/.test(w)) // scale ("1/100") dropped
@@ -80,13 +80,20 @@ export function pageWords(w) {
 export const EXTRA_OK = new Set(['gundam', 'ver', 'version', 'ka', 'the']); // harmless extra words in a retailer name
 
 // Reserves the next slot synchronously, so parallel callers still leave `minIntervalMs` between two requests to a site.
+// Each call precedes exactly one HTTP request: `turn.metrics` counts them and the waiting time (read by fetchPhotos for the journal).
 export function politeGate(minIntervalMs) {
   let next = 0;
-  return async () => {
+  const turn = async () => {
     const at = Math.max(next, Date.now());
     next = at + minIntervalMs;
-    if (at > Date.now()) await new Promise((r) => setTimeout(r, at - Date.now()));
+    turn.metrics.requests++;
+    if (at > Date.now()) {
+      turn.metrics.waitMs += at - Date.now();
+      await new Promise((r) => setTimeout(r, at - Date.now()));
+    }
   };
+  turn.metrics = { requests: 0, waitMs: 0 };
+  return turn;
 }
 
 // Words of the kit name every page must contain. One-letter words ("V" of "V Gundam", "Z") are required too:
@@ -96,7 +103,7 @@ export const kitWords = (name) => words(name).filter((w) => (w.length >= 2 || /^
 // Rates one retailer page against the kit: null = not this kit, else { sure, missing, extra, noGrade }.
 // `g` / `rest` = the page's grade (first word) and its other words. sure = grade agrees, every kit word present, no extra word.
 // Accepted as "a verifier" (never sure): extra words; ONE kit word missing (kit of 3+ words, grade agrees, word of 3+ letters
-// that is not a roman numeral: "Zaku I" must not take "Zaku II"); no grade on one side (kit or page), then ALL words and 2+ words.
+// that is not a roman numeral: "Zaku I" must not take "Zaku II"; with no grade on one side the kit needs 4+ words); no grade on one side (kit or page), then ALL words and 2+ words.
 // An explicit different grade, or a grade written elsewhere in the title, is never guessed around; neither is another scale:
 // `scale` (digits, see scaleOf) of the kit against the one written in the page title, only when both are known.
 // Page codes help the match: a hyphenated code whose parts are ALL kit words is split (sure still possible if exact), and the
@@ -123,7 +130,7 @@ export function rate({ name, title, grade, g, rest: page, scale }) {
   if (scale && scaleOf(title) && scale !== scaleOf(title)) return null;
   // A tolerated code is what the kit may lack: a further missing word then only passes as an abbreviation of a page word ("Eva" = "Evangelion").
   const codeGone = missing.some((x) => codeless && isCode(x));
-  const slack = !noGrade && base.length >= 3 && gone.length === 1 && /^[a-z]{3,}$/.test(gone[0]) && !/^[ivx]+$/.test(gone[0]) && (!codeGone || rest.some((c) => c.startsWith(gone[0])));
+  const slack = base.length >= (noGrade ? 4 : 3) && gone.length === 1 && /^[a-z]{3,}$/.test(gone[0]) && !/^[ivx]+$/.test(gone[0]) && (!codeGone || rest.some((c) => c.startsWith(gone[0])));
   if ((gone.length && !slack) || (noGrade && base.length < 2) || !titleMatches(name, title)) return null;
   const cutV = base !== named && !/\bver(sion)?\b/i.test(title); // "V"/"Ve" ignored with no "Ver." on the page: a guess
   return { sure: !noGrade && !missing.length && !extra.length && !cutV, missing, extra, noGrade };
@@ -141,12 +148,16 @@ export const doubtCost = (h) => (h.missing ?? []).filter((x) => x !== 'gundam').
 export function bestDoubt(hits) {
   const least = Math.min(...hits.map(doubtCost));
   const tied = hits.filter((h) => doubtCost(h) === least);
-  if (new Set(tied.map((h) => h.href)).size > 1) return { reason: REASONS.ambiguous };
+  if (new Set(tied.map((h) => h.href)).size > 1) return { reason: REASONS.ambiguous, extra: tied[0].extra, missing: tied[0].missing ?? [] };
   return tied.length ? { hit: doubtHit(tied[0]) } : null;
 }
 
 // A hit of the second, relaxed query: always "a verifier".
 export const markRelaxed = (hit, rx) => ({ ...hit, uncertain: true, extra: hit.extra ?? [], relaxed: true, dropped: rx.dropped });
+
+// Judges the result of the relaxed query. A page found WITHOUT the last word (rx.against) may not also have extra words: a missing
+// distinctive word plus a foreign one is another kit ("Mobile Suit Gundam Zaku II" for "... GQuuuuuuX"), a miss beats a wrong photo.
+export const relaxedResult = (r, rx) => (!r.hit ? r : rx.against && r.hit.extra?.length ? { reason: REASONS.noCandidate, extra: r.hit.extra, missing: r.hit.missing } : { hit: markRelaxed(r.hit, rx) });
 
 // Scraped URLs are untrusted: only https on hlj.com itself (measured: images are on www.hlj.com), else null.
 function hljUrl(raw) {
@@ -171,8 +182,19 @@ export function relaxName(name) {
     .split(/\s+/)
     .filter(Boolean);
   const isDrop = (t) => /^ver\.?(v?\d+(\.\d+)*)?$/i.test(t) || /^v?\d+(\.\d+)+$/.test(t) || (/\d/.test(t) && t.includes('-'));
-  const query = tokens.filter((t) => !isDrop(t) || (dropped.push(t), false)).join(' ');
-  return query === name.replace(/\s+/g, ' ').trim() || kitWords(query).length < 2 ? null : { query, dropped };
+  let against;
+  const plain = name.replace(/\s+/g, ' ').trim();
+  let query = tokens.filter((t) => !isDrop(t) || (dropped.push(t), false)).join(' ');
+  // Nothing to drop and a long name: HLJ's every-word search found nothing, so the last word (a retailer suffix: "Mobile Suit",
+  // "Special"...) goes; letters only, never a roman numeral ("Zaku Type II"). The hit is "a verifier" like any relaxed one,
+  // and is judged against the ORIGINAL name (`against`): that word counts as the ONE missing word of rate, never a second loss.
+  const last = tokens.at(-1) ?? '';
+  if (!dropped.length && query === plain && kitWords(name).length >= 4 && /^[a-z]{3,}$/i.test(last) && !/^[ivx]+$/i.test(last) && !/^\W+$/.test(tokens.at(-2) ?? '')) { // not after a dangling "-"
+    query = tokens.slice(0, -1).join(' ');
+    dropped.push(last);
+    against = name;
+  }
+  return query === plain || kitWords(query).length < 2 ? null : { query, dropped, ...(against && { against }) };
 }
 
 // Bandai box photo from HobbyLink Japan's search page (public, no key; box shots are 1200x900).
@@ -216,6 +238,7 @@ export function hljProvider({ fetch = globalThis.fetch, minIntervalMs = 1500 } =
   return {
     name: 'hlj-box',
     host: 'hlj.com',
+    metrics: turn.metrics,
     concurrency: 1, // the shared gate serialises its requests anyway
     async find(name, kitGrade, refuse = () => {}, scale) {
       // An unknown/unsupported kit grade is never guessed: without one, only a kit of 2+ words is searched (always "a verifier").
@@ -227,11 +250,10 @@ export function hljProvider({ fetch = globalThis.fetch, minIntervalMs = 1500 } =
         // Only when HLJ returned zero products (not "products that do not match"): one more request, relaxed, never sure.
         const rx = items.length ? null : relaxName(name);
         if (rx) {
-          r = judge(await search(rx.query), rx.query, grade, true, scale);
-          if (r.hit) r.hit = markRelaxed(r.hit, rx);
+          r = relaxedResult(judge(await search(rx.query), rx.against ?? rx.query, grade, true, scale), rx);
         }
         if (r.hit) return r.hit;
-        refuse(r.reason);
+        refuse(r.reason, { query: rx?.query ?? name, extra: r.extra, missing: r.missing });
         return null;
       } catch (err) {
         console.error(`[photos] ${this.name}: ${err.message}`);

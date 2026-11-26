@@ -464,8 +464,8 @@ test('fiches à vérifier : un « Gundam » manquant ne coûte rien (« 00 Qan[T
 });
 
 // --- RULES_VERSION --------------------------------------------------------------------------------------------------------------------
-test('RULES_VERSION 3 : les refus de la version 2 sont redemandés (OO Raiser débloqué), pas ceux de la version 3', async () => {
-  assert.equal(RULES_VERSION, 3);
+test('RULES_VERSION 4 : les refus de la version 2 sont redemandés (OO Raiser débloqué), pas ceux de la version courante', async () => {
+  assert.equal(RULES_VERSION, 4);
   await withDb(async (t) => {
     const fetch = web({ gp: [['PG GN-0000/GNR-010 00 Gundam 00 Raiser', 'pg-raiser']] });
     const id = addRealKit(t.db, ++n, 'GUNDAM GUNPLA PG 1/60 OO-RAISER');

@@ -70,6 +70,13 @@ test('wiki : "Gundam Wing" ne reçoit pas la page "Zero Wing"', async () => {
   assert.equal(hit.uncertain, true);
 });
 
+test('wiki : "Evangelion Unit-02 Production Model" -> page du wiki, à vérifier', async () => {
+  const wiki = gundamWikiProvider({ fetch: net([page('Evangelion Unit-02 Production Model')]), minIntervalMs: 0 });
+  const hit = await wiki.find('Evangelion Unit-02 Production Model', null);
+  assert.equal(hit.pageUrl, 'https://gundam.fandom.com/wiki/Evangelion_Unit-02_Production_Model');
+  assert.equal(hit.uncertain, true);
+});
+
 test('wiki : 403 au téléchargement -> aucune exception, kit sans photo, source coupée après 5 échecs de suite', async () => {
   await withDb(async ({ db, dir }) => {
     const wiki = gundamWikiProvider({ fetch: net([page('Gundam Exia')]), minIntervalMs: 0 });
