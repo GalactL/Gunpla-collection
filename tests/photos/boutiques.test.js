@@ -251,3 +251,12 @@ test('hit sûr en forme 1 : pas de forme 2 ; sources existantes : 1 requête de 
   await chain(fetch)[1].find('Gundam Barbatos', 'HG');
   assert.equal(fetch.queries.gundamplanet.length, 1);
 });
+
+// Japan Figure (japan-figure.com) : titres « Bandai Gundam Barbatos HG 1/144 Gunpla Model Kit », relevés sur la boutique réelle ; web simulé.
+test('Japan Figure : titre de revendeur (fournisseur, « Model Kit ») ramené au grade en tête, mauvais grade refusé', async () => {
+  const jf = (products) => shopifyProvider({ name: 'japanfigure', host: 'japan-figure.com', fetch: async () => Response.json({ resources: { results: { products } } }), minIntervalMs: 0, tidy: true });
+  const hit = await jf([item('Bandai Gundam Barbatos Hg 1/144 Gunpla Model Kit', 'bandai-gundam-barbatos-hg-1-144-gunpla-model-kit-bandai')]).find('Gundam Barbatos', 'HG');
+  assert.equal(hit.pageUrl, 'https://www.japan-figure.com/products/bandai-gundam-barbatos-hg-1-144-gunpla-model-kit-bandai');
+  assert.equal(hit.uncertain, undefined);
+  assert.deepEqual(await refusal(jf([item('Bandai Gundam Barbatos Pg 1/60 Gunpla Model Kit', 'pg')]), 'Gundam Barbatos', 'HG'), [REASONS.noCandidate]);
+});

@@ -66,6 +66,8 @@ test('titleMatches : zéros de tête, ν, "Gundam" seul et chiffres romains', as
 test('searchName retire grade et échelle', () => {
   assert.equal(searchName('MG 1/100 FAZZ Ver.Ka'), 'FAZZ Ver.Ka');
   assert.equal(searchName('Exia'), 'Exia');
+  assert.equal(searchName('HÜCkebein PTX-08R'), 'HUCkebein PTX-08R'); // accents: shops write ASCII
+  assert.equal(searchName('30 Mm CC-2000 Orbiter Nightfall'), '30MM CC-2000 Orbiter Nightfall');
 });
 
 test('auto ne remplace jamais une photo user ; user remplace auto (ext différente, ancien fichier supprimé)', async () => {
@@ -461,8 +463,10 @@ test('photos : chaîne par défaut = HLJ puis boutiques Shopify ; décompte par 
       await new Promise((r) => setTimeout(r, 5));
       st = await (await app.req('GET', '/api/photos/status')).json();
     } while (st.running);
-    assert.deepEqual(Object.keys(st.last.sources).sort(), ['aztoyhobby', 'gundamplanet', 'gundamwiki', 'hlj-box', 'lascalemodel', 'usagundamstore']);
-    assert.deepEqual(st.last.sources['hlj-box'], { found: 2, uncertain: 0, errors: 0, refused: { [REASONS.noCandidate]: 1 } }); // #12 : champ uncertain ajouté
+    assert.deepEqual(Object.keys(st.last.sources).sort(), ['aztoyhobby', 'gundamplanet', 'gundamwiki', 'hlj-box', 'japanfigure', 'lascalemodel', 'usagundamstore']);
+    const { ms, downloadMs, waitMs, requests, downloads, ...hlj } = st.last.sources['hlj-box']; // #49 : temps, requêtes, attente et téléchargements s'ajoutent au décompte
+    assert.deepEqual(hlj, { found: 2, uncertain: 0, errors: 0, refused: { [REASONS.noCandidate]: 1 } });
+    assert.ok(ms >= 0 && requests === 3 && downloads === 2);
     assert.equal(photoRow(app.db, exia).source_url, 'https://www.hlj.com/mg-exia-ban1');
     assert.equal(photoRow(app.db, wiki).source_url, 'https://www.hlj.com/mg-exia-ban1'); // wiki remplacée
     assert.equal(photoRow(app.db, up).kind, 'user'); // upload intact
@@ -658,7 +662,7 @@ test('#12 égalité entre deux fiches douteuses différentes -> refus avec ligne
     assert.deepEqual(out, [{ found: false }]);
     assert.equal(photoRow(app.db, kitId), undefined);
     assert.deepEqual(stats['hlj-box'].refused, { [REASONS.ambiguous]: 1 });
-    assert.deepEqual(logs, [`[photos] kit ${kitId} hlj-box: refused (${REASONS.ambiguous})`]);
+    assert.deepEqual(logs, [`[photos] kit ${kitId} hlj-box: refused (${REASONS.ambiguous}) "Gundam Aerial" HG query="Gundam Aerial" extra=[permet score six]`]);
     // même fiche listée deux fois : pas une égalité
     assert.deepEqual((await hljJob(app, [...AERIAL, ...AERIAL], [kitId])).out, [{ found: true }]);
     app.db.prepare('DELETE FROM photos').run();
@@ -945,7 +949,7 @@ test('#14 passage assoupli : deux fiches sûres différentes au même nombre de 
     assert.deepEqual(r.out, [{ found: false }]);
     assert.equal(photoRow(app.db, kitId), undefined);
     assert.deepEqual(r.stats['hlj-box'].refused, { [REASONS.ambiguous]: 1 });
-    assert.deepEqual(r.logs, [`[photos] kit ${kitId} hlj-box: refused (${REASONS.ambiguous})`]);
+    assert.deepEqual(r.logs, [`[photos] kit ${kitId} hlj-box: refused (${REASONS.ambiguous}) "MS-06S Zaku II" HG query="Zaku II"`]);
     // la même fiche listée deux fois n'est pas une égalité
     r = await relaxJob(app, onlyFor('Zaku II', [f, f]), [kitId]);
     assert.deepEqual(r.out, [{ found: true }]);

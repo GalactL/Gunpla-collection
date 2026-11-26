@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PNG, addRealKit, tmpDataDir } from '../helpers/index.js';
 import { openDb } from '../../src/db/index.js';
-import { REASONS, hljProvider } from '../../src/photos/provider.js';
+import { REASONS, hljProvider, relaxName } from '../../src/photos/provider.js';
 import { shopifyProvider } from '../../src/photos/shopify.js';
-import { fetchPhotoForKit } from '../../src/photos/fetch.js';
+import { fetchPhotoForKit, searchName } from '../../src/photos/fetch.js';
 import { getPhoto, savePhoto } from '../../src/photos/store.js';
 
 // Correspondance souple : un mot manquant, grade absent, requête assouplie boutique. Vraies lignes kits (cleanTitle), web simulé.
@@ -209,4 +209,102 @@ test('assouplissement (ix) une fiche douteuse (mot manquant, grade absent) ne re
     assert.deepEqual(await job(t, unsure, hlj('1/144 HG Gundam Aerial')), { found: true });
     assert.deepEqual([row(t, unsure).uncertain, row(t, unsure).source_url], [0, 'https://www.hlj.com/new-ban1']);
   });
+});
+
+test('assouplissement (x) kit sans grade de 4 mots, un mot manquant : à vérifier ; 3 mots, ou "Gundam Wing" vs "Zero Wing" : refus', async () => {
+  await withDb(async (t) => {
+    const a = kit(t, 'GUNDAM AERIAL REBUILD SPECIAL');
+    assert.deepEqual(await job(t, a, web({ hlj: () => [['1/144 HG Gundam Aerial Rebuild', 'x-ban1']] })), { found: true });
+    assert.equal(row(t, a).uncertain, 1);
+    const b = kit(t, 'GUNDAM AERIAL REBUILD SPECIAL');
+    assert.deepEqual(await job(t, b, web({ gp: () => [shop('HG Gundam Aerial Rebuild', 'gp-x')] })), { found: true });
+    assert.equal(row(t, b).uncertain, 1);
+    const three = kit(t, 'GUNDAM AERIAL REBUILD');
+    assert.deepEqual(await job(t, three, web({ hlj: () => [['1/144 HG Gundam Aerial', 'x-ban1']] })), { found: false });
+    const wing = kit(t, 'GUNDAM WING');
+    assert.deepEqual(await job(t, wing, web({ hlj: () => [['Zero Wing', 'z-ban1']], gp: () => [shop('Zero Wing', 'zw')] })), { found: false });
+    assert.equal(row(t, wing), undefined);
+  });
+});
+
+test('assouplissement (xi) HLJ sans résultat : requête sans le dernier mot (4 mots et plus, lettres seules, jamais un numéral), à vérifier relaxed', async () => {
+  await withDb(async (t) => {
+    const id = kit(t, '1/144 HG GUNDAM AERIAL REBUILD SPECIAL');
+    const f = web({ hlj: (q) => (q === 'Gundam Aerial Rebuild' ? [['1/144 HG Gundam Aerial Rebuild', 'x-ban1']] : []) });
+    const stats = {};
+    assert.deepEqual(await job(t, id, f, { stats }), { found: true });
+    assert.deepEqual(f.queries.hlj, ['Gundam Aerial Rebuild Special', 'Gundam Aerial Rebuild']);
+    assert.deepEqual([row(t, id).uncertain, stats['hlj-box'].relaxed], [1, 1]);
+    assert.ok(t.logs.some((l) => l.includes('relaxed query; dropped: Special')), t.logs.join('\n'));
+    // numéral romain en dernier : rien à assouplir, une seule requête
+    const roman = kit(t, '1/144 HG ZAKU MASS PRODUCTION II');
+    const g = web();
+    await job(t, roman, g);
+    assert.equal(g.queries.hlj.length, 1);
+    assert.equal(relaxName('Gundam Wing Zero'), null); // 3 mots : pas touché
+    // une photo existante n'est pas remplacée par une fiche assouplie
+    const had = kit(t, '1/144 HG GUNDAM AERIAL REBUILD SPECIAL');
+    savePhoto({ db: t.db, dataDir: t.dir, kitId: had, bytes: PNG, kind: 'auto', sourceUrl: 'https://www.gundamplanet.com/products/old' });
+    assert.deepEqual(await job(t, had, f), { found: false });
+    assert.equal(row(t, had).source_url, 'https://www.gundamplanet.com/products/old');
+  });
+});
+
+test('assouplissement (xii) requête sans le dernier mot : jugée contre le nom ORIGINAL, jamais deux mots du kit perdus (HLJ et boutique)', async () => {
+  await withDb(async (t) => {
+    // "Gundam Exia Dark" -> "HG Gundam Exia" : "Dark" ET "Matter" perdus, refusé
+    const a = kit(t, '1/144 HG GUNDAM EXIA DARK MATTER');
+    const exia = (q) => (q.includes('Matter') ? [] : [['1/144 HG Gundam Exia', 'x-ban1']]);
+    assert.deepEqual(await job(t, a, web({ hlj: exia })), { found: false });
+    const b = kit(t, '1/144 HG GUNDAM EXIA DARK MATTER');
+    assert.deepEqual(await job(t, b, web({ gp: (q) => (q.includes('Matter') ? [] : [shop('HG Gundam Exia', 'gp-e')]) })), { found: false });
+    // le mot perdu est le seul : la fiche exacte (sûre pour le nom du kit sauf ce mot) l'emporte sur la plus courte, toujours à vérifier
+    const c = kit(t, '1/144 HG GUNDAM BARBATOS LUPUS REX');
+    const hlj = (q) => (q.includes('Rex') ? [] : [['1/144 HG Gundam Barbatos Lupus', 'short-ban1'], ['1/144 HG Gundam Barbatos Lupus Rex', 'full-ban2']]);
+    assert.deepEqual(await job(t, c, web({ hlj })), { found: true });
+    assert.deepEqual([row(t, c).uncertain, row(t, c).source_url], [1, 'https://www.hlj.com/full-ban2']);
+    const d = kit(t, '1/144 HG GUNDAM BARBATOS LUPUS REX');
+    const gp = (q) => (q.includes('Rex') ? [] : [shop('HG Gundam Barbatos Lupus', 'gp-short'), shop('HG Gundam Barbatos Lupus Rex', 'gp-full')]);
+    assert.deepEqual(await job(t, d, web({ gp })), { found: true });
+    assert.deepEqual([row(t, d).uncertain, row(t, d).source_url], [1, 'https://www.gundamplanet.com/products/gp-full']);
+  });
+});
+
+test('assouplissement (xii bis) requête sans le dernier mot : jamais après un « - » pendant, ni une fiche qui a aussi des mots en trop (le mot retiré est le seul distinctif)', async () => {
+  await withDb(async (t) => {
+    // kit réel sans grade « Mobile Suit Gundam - GQuuuuuuX » : pas de requête « Mobile Suit Gundam - », donc pas de photo du Zaku
+    const a = kit(t, 'MOBILE SUIT GUNDAM - GQUUUUUUX');
+    const f = web({ hlj: (q) => (q.includes('GQuuuuuuX') ? [] : [['Mobile Suit Gundam Zaku II', 'zaku-ban1']]) });
+    assert.deepEqual(await job(t, a, f), { found: false });
+    assert.equal(f.queries.hlj.length, 1);
+    assert.equal(row(t, a), undefined);
+    // « Super Robot Wars Cybaster » : la fiche sans « Cybaster » mais avec un mot étranger est refusée (HLJ et boutique)
+    const b = kit(t, '1/144 HG SUPER ROBOT WARS CYBASTER');
+    assert.deepEqual(await job(t, b, web({ hlj: (q) => (q.includes('Cybaster') ? [] : [['1/144 HG Super Robot Wars Gaiking', 'srw-ban1']]) })), { found: false });
+    const c = kit(t, '1/144 HG SUPER ROBOT WARS CYBASTER');
+    assert.deepEqual(await job(t, c, web({ gp: (q) => (q.includes('Cybaster') ? [] : [shop('HG Super Robot Wars Gaiking', 'srw-gp')]) })), { found: false });
+    assert.equal(row(t, b), undefined);
+    assert.equal(row(t, c), undefined);
+  });
+});
+
+test('assouplissement (xiii) kit gradé de 4 mots, fiche sans grade, un mot manquant : à vérifier ; envoi manuel jamais remplacé par une fiche assouplie', async () => {
+  await withDb(async (t) => {
+    const a = kit(t, '1/144 HG GUNDAM AERIAL REBUILD SPECIAL');
+    assert.deepEqual(await job(t, a, web({ hlj: () => [['Gundam Aerial Rebuild Model Kit', 'bare-ban1']] })), { found: true });
+    assert.equal(row(t, a).uncertain, 1);
+    const user = kit(t, '1/144 HG GUNDAM AERIAL REBUILD SPECIAL');
+    savePhoto({ db: t.db, dataDir: t.dir, kitId: user, bytes: PNG, kind: 'user' });
+    const f = web({ hlj: (q) => (q === 'Gundam Aerial Rebuild' ? [['1/144 HG Gundam Aerial Rebuild', 'x-ban1']] : []) });
+    assert.deepEqual(await job(t, user, f), { found: false });
+    assert.deepEqual([row(t, user).kind, f.queries.hlj], ['user', []]);
+  });
+});
+
+test('searchName retire le préfixe de série "Mobile Suit Gundam -" mais garde "Gundam Wing" et un titre qui ne serait plus rien', () => {
+  assert.equal(searchName('Mobile Suit Gundam - Gelgoog Cannon'), 'Gelgoog Cannon');
+  assert.equal(searchName('Mobile Suit Gundam - Mobile Suit Gundam : After War Gundam X'), 'After War Gundam X');
+  assert.equal(searchName('Gundam Wing'), 'Gundam Wing');
+  assert.equal(searchName('Mobile Suit Gundam - Wing'), 'Mobile Suit Gundam - Wing'); // un seul mot resterait : "wing" nu contournerait la garde
+  assert.equal(searchName('Mobile Suit Gundam -'), 'Mobile Suit Gundam -');
 });

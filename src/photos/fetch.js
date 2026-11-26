@@ -22,7 +22,10 @@ export function stripCatalogueNumbers(title) {
 export function searchName(title) {
   const name = title
     .replace(/[áâ–€▀]+/g, ' ')
+    .normalize('NFD').replace(/\p{M}/gu, '') // "HÜCkebein" -> "HUCkebein": shops write the ASCII name (measured on HLJ)
+    .replace(/\b30 Mm\b/gi, '30MM') // the Bandai line is written "30MM" in shop titles ("30 Mm ..." finds nothing on HLJ)
     .replace(/^BANMK\d+\s*GUNDAM\s*/i, '')
+    .replace(/^(?:Mobile Suit Gundam\s*[-:]\s+)+(?=\S+\s+\S)/i, '') // series prefix "Mobile Suit Gundam - Gelgoog Cannon": no shop writes it; kept when one word would remain ("... - Wing")
     .replace(/\b(?:The )?Witch From Mercury(?=\s+-|\s+\d)/gi, ' ')
     .replace(/\b(?:High Grade|Real Grade|Maquette|Scale)\b/gi, ' ')
     .replace(/\b([A-Za-z]{2,4}) (\d{3})\b/g, (m, a, n) => (/^(?:HG|RG|MG|PG|SD|EG|FM|RE)$/i.test(a) ? m : `${a}-${n}`));
@@ -75,6 +78,21 @@ export function providersToTry({ db, kitId, providers }) {
   return rank < 0 ? [] : photo.uncertain ? providers : providers.slice(0, rank);
 }
 
+// One line per source for the end-of-job journal: found / uncertain / relaxed / errors / skipped / refused by reason.
+export const summarize = (stats) =>
+  Object.entries(stats).map(([n, t]) => {
+    const refused = Object.entries(t.refused).map(([r, c]) => `${r}: ${c}`).join(', ') || 'none';
+    const sec = (ms) => `${(ms / 1000).toFixed(1)}s`;
+    // Timing fields are absent until used (a source with no activity adds no noise).
+    const timing = [
+      t.ms != null && `time ${sec(t.ms)}`,
+      t.requests && `requests ${t.requests}`,
+      t.waitMs && `polite wait ${sec(t.waitMs)}`,
+      t.downloads && `downloads ${t.downloads} (${sec(t.downloadMs)})`,
+    ].filter(Boolean);
+    return `[photos]   ${n}: found ${t.found}, uncertain ${t.uncertain}, relaxed ${t.relaxed ?? 0}, errors ${t.errors}, skipped ${t.skipped ?? 0}, refused ${refused}${timing.map((x) => `, ${x}`).join('')}`;
+  });
+
 // Per-source tally for one photo job: { [provider]: { found, uncertain, relaxed?, errors, refused: { [reason]: n } } }.
 const tally = (stats, name) => (stats[name] ??= { found: 0, uncertain: 0, errors: 0, refused: {} });
 
@@ -82,7 +100,7 @@ const tally = (stats, name) => (stats[name] ??= { found: 0, uncertain: 0, errors
 export const BREAKER = 5;
 
 // Bump when the matching rules change (provider.js, shopify.js, searchName): remembered refusals then go stale.
-export const RULES_VERSION = 3; // 3: titles normalised, cleaned name, missing code tolerated, scale checked (refusals of version 2 may now match)
+export const RULES_VERSION = 4; // 4: one missing word also with no grade (4+ words), HLJ last-word relaxed query, series prefix dropped. 3: titles normalised, cleaned name, missing code tolerated, scale checked (refusals of version 2 may now match)
 const REFUSAL_TTL_MS = 7 * 24 * 3600 * 1000;
 
 // Tries ONE source for one kit; never throws for provider/download problems: {found:false}.
@@ -105,6 +123,7 @@ export async function tryProvider({ db, dataDir, kitId, p, fetch = globalThis.fe
     const known = db.prepare('SELECT 1 FROM photo_refusals WHERE kit_id = ? AND provider = ? AND rules_version = ? AND title_key = ? AND refused_at > ?');
     if (known.get(kitId, p.name, RULES_VERSION, key, since)) {
       t.skipped = (t.skipped ?? 0) + 1; // absent until used: earlier stats shapes stay as they were
+      console.error(`[photos] kit ${kitId} ${p.name}: skipped (refusal remembered; "${name}")`);
       return { found: false };
     }
   }
@@ -112,11 +131,12 @@ export async function tryProvider({ db, dataDir, kitId, p, fetch = globalThis.fe
   const fail = () => {
     const n = (breaker.get(p.name) ?? 0) + 1;
     breaker.set(p.name, n);
-    if (n === BREAKER) console.error(`[photos] ${p.name}: ${n} source errors in a row, skipped for the rest of the job`);
+    if (n === BREAKER) console.error(`[photos] ${p.name}: circuit open after ${n} source errors in a row, skipped for the rest of the job`);
   };
+  const t0 = now();
   try {
-    let reason;
-    const hit = await p.find(name, grade, (r) => (reason = r), scaleOf(kit.scale ?? kit.title));
+    let reason, detail;
+    const hit = await p.find(name, grade, (r, d) => ((reason = r), (detail = d)), scaleOf(kit.scale ?? kit.title));
     const kept = !!hit?.uncertain && hadPhoto; // a doubtful page never replaces a photo: remembered like a refusal
     if (reason === REASONS.source) fail();
     else if (!hit || kept) breaker.delete(p.name); // a hit is only healthy once its image downloaded (a CDN 403 counts as an error)
@@ -129,10 +149,14 @@ export async function tryProvider({ db, dataDir, kitId, p, fetch = globalThis.fe
           kitId, p.name, reason, RULES_VERSION, key, new Date(now()).toISOString(),
         );
       }
-      console.error(`[photos] kit ${kitId} ${p.name}: refused (${reason})`);
+      console.error(`[photos] kit ${kitId} ${p.name}: refused (${reason}) "${name}"${grade ? ` ${grade}` : ''} query="${detail?.query ?? name}"${detail?.extra?.length ? ` extra=[${detail.extra.join(' ')}]` : ''}${detail?.missing?.length ? ` missing=[${detail.missing.join(' ')}]` : ''}`); // the provider logs its own HTTP/timeout message
       return { found: false };
     }
-    const bytes = await download(hit.imageUrl, fetch);
+    const d0 = now();
+    const bytes = await download(hit.imageUrl, fetch).finally(() => {
+      t.downloads = (t.downloads ?? 0) + 1;
+      t.downloadMs = (t.downloadMs ?? 0) + now() - d0;
+    });
     breaker.delete(p.name);
     const sourceUrl = hit.pageUrl ?? hit.imageUrl;
     if (savePhoto({ db, dataDir, kitId, bytes, kind: 'auto', sourceUrl, uncertain: !!hit.uncertain })) {
@@ -154,6 +178,8 @@ export async function tryProvider({ db, dataDir, kitId, p, fetch = globalThis.fe
     t.errors++;
     fail();
     console.error(`[photos] kit ${kitId} via ${p.name}: ${err.message}`);
+  } finally {
+    t.ms = (t.ms ?? 0) + now() - t0; // cumulative over kits (concurrent kits add up)
   }
   return { found: false };
 }
@@ -175,7 +201,21 @@ export async function fetchPhotoForKit({ db, kitId, providers, ...rest }) {
 // source did not find it, so its sources are still tried in rank order, one at a time. `todo`: [{ kitId, wanted: [providers] }].
 // Calls onKit(found) once per kit when all its stages are done; resolves when every kit is.
 export function fetchPhotos({ db, dataDir, todo, providers, fetch, stats = {}, breaker = new Map(), force, now, onKit = () => {} }) {
-  return new Promise((resolve) => {
+  // Requests and polite wait are counted by each provider's gate; the job's share is the difference over the run.
+  const before = providers.map((p) => ({ ...p.metrics }));
+  // A provider that can answer from a catalogue is told when the job starts and ends (see shopifyProvider `catalogue`).
+  providers.forEach((p) => p.plan?.(true));
+  return new Promise((done) => {
+    const resolve = () => {
+      providers.forEach((p, i) => {
+        p.plan?.(false);
+        const requests = (p.metrics?.requests ?? 0) - (before[i].requests ?? 0);
+        const waitMs = (p.metrics?.waitMs ?? 0) - (before[i].waitMs ?? 0);
+        if (stats[p.name] && requests) stats[p.name].requests = requests;
+        if (stats[p.name] && waitMs) stats[p.name].waitMs = waitMs;
+      });
+      done();
+    };
     let left = todo.length;
     if (!left) return resolve();
     const stages = providers.map((p) => ({ p, queue: [], active: 0 }));
